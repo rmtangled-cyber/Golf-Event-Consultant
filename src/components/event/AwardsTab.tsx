@@ -1,89 +1,65 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Stepper } from '@/components/event/PlayersTab.tsx';
-import { Button, Card, Muted, SectionTitle, colors } from '@/components/ui.tsx';
-import { awards } from '@/domain/scoring.ts';
-import type { CompeEvent, SpecialAward, SpecialAwardKind } from '@/domain/types.ts';
-import { newId } from '@/store/EventsContext.tsx';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { api } from '@/api/index.ts';
+import type { AwardInfo } from '@/api/types.ts';
+import { toCompeEvent } from '@/api/toCompeEvent.ts';
+import { AwardResults } from '@/components/event/AwardResults.tsx';
+import { Button, Card, Chip, CommitField, Muted, SectionTitle, Stepper, colors } from '@/components/ui.tsx';
+import type { OrganizerTabProps } from './types.ts';
 
-export function AwardsTab({
-  event,
-  update,
-}: {
-  event: CompeEvent;
-  update: (fn: (e: CompeEvent) => CompeEvent) => void;
-}) {
-  const results = awards(event);
+export function AwardsTab({ bundle, run }: OrganizerTabProps) {
+  const { event, awards, players } = bundle;
 
-  const addSpecial = (kind: SpecialAwardKind) =>
-    update((e) => {
-      const used = new Set(e.specialAwards.map((a) => a.hole));
-      // ドラコンは最初の空いているパー5（なければパー4）、ニアピンはパー3
-      const candidates = e.pars
-        .map((par, i) => ({ par, hole: i + 1 }))
-        .filter(({ par }) => (kind === 'pin' ? par === 3 : par >= 4))
-        .sort((a, b) => b.par - a.par);
-      const hole = candidates.find((c) => !used.has(c.hole))?.hole ?? 1;
-      return { ...e, specialAwards: [...e.specialAwards, { id: newId(), kind, hole }] };
-    });
-
-  const patch = (id: string, p: Partial<SpecialAward>) =>
-    update((e) => ({
-      ...e,
-      specialAwards: e.specialAwards.map((a) => (a.id === id ? { ...a, ...p } : a)),
-    }));
-
-  const remove = (id: string) =>
-    update((e) => ({ ...e, specialAwards: e.specialAwards.filter((a) => a.id !== id) }));
+  const addSpecial = (kind: AwardInfo['kind']) => {
+    const used = new Set(awards.map((a) => a.hole));
+    // ドラコンは空いているパー5（なければパー4）、ニアピンはパー3
+    const candidates = event.pars
+      .map((par, i) => ({ par, hole: i + 1 }))
+      .filter(({ par }) => (kind === 'pin' ? par === 3 : par >= 4))
+      .sort((a, b) => b.par - a.par);
+    const hole = candidates.find((c) => !used.has(c.hole))?.hole ?? 1;
+    void run(() => api.addAward(event.id, kind, hole));
+  };
 
   return (
     <View style={{ gap: 12 }}>
-      <Card>
-        <SectionTitle>表彰</SectionTitle>
-        {results.length === 0 && <Muted>ホールアウトした参加者が出ると表彰が表示されます。</Muted>}
-        {results.map((r, i) => (
-          <View key={`${r.title}-${i}`} style={styles.awardRow}>
-            <Text style={styles.awardTitle}>{r.title}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.awardName}>{r.playerName}</Text>
-              {r.detail ? <Muted>{r.detail}</Muted> : null}
-            </View>
-          </View>
-        ))}
-      </Card>
-
+      <AwardResults event={toCompeEvent(bundle)} />
       <Card>
         <SectionTitle>ドラコン・ニアピン</SectionTitle>
-        {event.specialAwards.map((a) => (
+        <Muted>対象ホールを決めておくと、組代表がプレー中に暫定トップを記録できます。</Muted>
+        {awards.map((a) => (
           <View key={a.id} style={styles.special}>
             <View style={styles.inline}>
               <Text style={styles.kind}>{a.kind === 'drive' ? 'ドラコン' : 'ニアピン'}</Text>
-              <Stepper value={a.hole} min={1} max={18} onChange={(hole) => patch(a.id, { hole })} />
-              <Muted>番ホール（Par {event.pars[a.hole - 1]}）</Muted>
+              <Stepper
+                label="ホール"
+                value={a.hole}
+                min={1}
+                max={18}
+                onChange={(hole) => run(() => api.updateAward(a.id, { hole }))}
+              />
+              <Muted>番（Par {event.pars[a.hole - 1]}）</Muted>
               <View style={{ flex: 1 }} />
-              <Pressable onPress={() => remove(a.id)} hitSlop={8} accessibilityLabel="削除">
+              <Pressable onPress={() => run(() => api.deleteAward(a.id))} hitSlop={8} accessibilityLabel="削除">
                 <Text style={{ color: colors.danger, fontSize: 18 }}>✕</Text>
               </Pressable>
             </View>
             <View style={styles.chips}>
-              {event.players.map((p) => {
-                const selected = a.winnerPlayerId === p.id;
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => patch(a.id, { winnerPlayerId: selected ? undefined : p.id })}
-                    style={[styles.chip, selected && styles.chipSelected]}
-                  >
-                    <Text style={[styles.chipText, selected && { color: '#fff' }]}>{p.name}</Text>
-                  </Pressable>
-                );
-              })}
+              {players.map((p) => (
+                <Chip
+                  key={p.id}
+                  label={p.name}
+                  selected={a.winnerPlayerId === p.id}
+                  onPress={() =>
+                    run(() => api.updateAward(a.id, { winnerPlayerId: a.winnerPlayerId === p.id ? null : p.id }))
+                  }
+                />
+              ))}
             </View>
             {a.kind === 'pin' && (
-              <TextInput
-                value={a.note ?? ''}
-                onChangeText={(note) => patch(a.id, { note })}
-                placeholder="距離など（例：1.2m）"
-                placeholderTextColor={colors.muted}
+              <CommitField
+                value={a.note}
+                onCommit={(note) => run(() => api.updateAward(a.id, { note }))}
+                placeholder="メモ（任意・例：1.2m）"
                 style={styles.note}
               />
             )}
@@ -99,16 +75,6 @@ export function AwardsTab({
 }
 
 const styles = StyleSheet.create({
-  awardRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  awardTitle: { width: 112, fontWeight: '700', color: colors.primary },
-  awardName: { fontSize: 16, fontWeight: '700', color: colors.text },
   special: {
     gap: 8,
     paddingVertical: 8,
@@ -118,16 +84,6 @@ const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   kind: { fontWeight: '700', color: colors.text },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: '#fff',
-  },
-  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.text },
   note: {
     borderWidth: 1,
     borderColor: colors.border,

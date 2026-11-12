@@ -3,36 +3,33 @@ import { Card, Muted, colors, formatToPar } from '@/components/ui.tsx';
 import { leaderboard } from '@/domain/scoring.ts';
 import type { CompeEvent } from '@/domain/types.ts';
 
-const COLUMNS = [
-  { key: 'rank', label: '順位', width: 36 },
-  { key: 'name', label: '名前', width: undefined },
-  { key: 'out', label: 'OUT', width: 36 },
-  { key: 'in', label: 'IN', width: 36 },
-  { key: 'gross', label: 'グロス', width: 46 },
-  { key: 'hc', label: 'HC', width: 42 },
-  { key: 'net', label: 'ネット', width: 50 },
-] as const;
-
-export function LeaderboardTab({ event }: { event: CompeEvent }) {
-  const rows = leaderboard(event);
+/**
+ * 順位表。gross = true のときはハンデを使わずグロスで並べる
+ * （新ペリアで結果確定前の閲覧リンクなど、ハンデがまだ出せないとき）。
+ */
+export function LeaderboardTable({ event, gross, footnote }: { event: CompeEvent; gross?: boolean; footnote?: string }) {
+  const rows = leaderboard(gross ? { ...event, handicapMethod: 'none' } : event);
   if (rows.length === 0) {
     return (
       <Card>
-        <Muted>参加者を登録し、スコアを入力すると順位が表示されます。</Muted>
+        <Muted>参加者が登録されると順位が表示されます。</Muted>
       </Card>
     );
   }
+  const showNet = !gross && event.handicapMethod !== 'none';
 
   return (
     <Card style={{ padding: 0, overflow: 'hidden' }}>
       <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}>
         <View style={{ flexGrow: 1 }}>
           <View style={[styles.row, styles.header]}>
-            {COLUMNS.map((c) => (
-              <Text key={c.key} style={[styles.cell, styles.headerText, c.width ? { width: c.width } : styles.nameCol, c.key === 'name' && styles.left]}>
-                {c.label}
-              </Text>
-            ))}
+            <Text style={[styles.cell, styles.headerText, { width: 36 }]}>順位</Text>
+            <Text style={[styles.cell, styles.headerText, styles.left, styles.nameCol]}>名前</Text>
+            <Text style={[styles.cell, styles.headerText, { width: 36 }]}>OUT</Text>
+            <Text style={[styles.cell, styles.headerText, { width: 36 }]}>IN</Text>
+            <Text style={[styles.cell, styles.headerText, { width: 46 }]}>グロス</Text>
+            {showNet && <Text style={[styles.cell, styles.headerText, { width: 42 }]}>HC</Text>}
+            {showNet && <Text style={[styles.cell, styles.headerText, { width: 50 }]}>ネット</Text>}
           </View>
           {rows.map((r) => {
             const done = r.rank != null;
@@ -50,12 +47,14 @@ export function LeaderboardTab({ event }: { event: CompeEvent }) {
                     <Text style={[styles.cell, { width: 36 }]}>{r.out}</Text>
                     <Text style={[styles.cell, { width: 36 }]}>{r.in}</Text>
                     <Text style={[styles.cell, { width: 46, fontWeight: '700' }]}>{r.gross}</Text>
-                    <Text style={[styles.cell, { width: 42 }]}>{r.handicap}</Text>
-                    <Text style={[styles.cell, { width: 50, fontWeight: '800', color: colors.primary }]}>{r.net}</Text>
+                    {showNet && <Text style={[styles.cell, { width: 42 }]}>{r.handicap}</Text>}
+                    {showNet && (
+                      <Text style={[styles.cell, { width: 50, fontWeight: '800', color: colors.primary }]}>{r.net}</Text>
+                    )}
                   </>
                 ) : (
-                  <Text style={[styles.cell, styles.left, { width: 210, color: colors.muted }]}>
-                    {r.thru === 0 ? '未スタート' : `プレー中 ${r.thru}H（${formatToPar(r.toPar)}）`}
+                  <Text style={[styles.cell, styles.left, { width: showNet ? 210 : 118, color: colors.muted }]}>
+                    {r.thru === 0 ? '未スタート' : `${r.thru}H（${formatToPar(r.toPar)}）`}
                   </Text>
                 )}
               </View>
@@ -63,11 +62,11 @@ export function LeaderboardTab({ event }: { event: CompeEvent }) {
           })}
         </View>
       </ScrollView>
-      {event.handicapMethod === 'shin-peoria' && (
+      {footnote ? (
         <View style={{ padding: 12 }}>
-          <Muted>新ペリア：ハンデはホールアウト後に確定します。同ネットはハンデの少ない方が上位。</Muted>
+          <Muted>{footnote}</Muted>
         </View>
-      )}
+      ) : null}
     </Card>
   );
 }

@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { Button, Card, Field, Muted, Screen, Segmented } from '@/components/ui.tsx';
+import { api } from '@/api/index.ts';
+import { Button, Card, Field, Muted, Notice, Screen, Segmented } from '@/components/ui.tsx';
 import { HANDICAP_OPTIONS } from '@/domain/labels.ts';
+import { DEFAULT_PARS, pickHiddenHoles } from '@/domain/scoring.ts';
 import type { HandicapMethod } from '@/domain/types.ts';
-import { useEvents } from '@/store/EventsContext.tsx';
+import { errorMessage } from '@/lib/errors.ts';
 
 const today = () => {
   const d = new Date();
@@ -13,20 +15,29 @@ const today = () => {
 };
 
 export default function NewEventScreen() {
-  const { createEvent } = useEvents();
   const [name, setName] = useState('');
   const [date, setDate] = useState(today());
   const [courseName, setCourseName] = useState('');
   const [method, setMethod] = useState<HandicapMethod>('shin-peoria');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = () => {
-    const event = createEvent({
-      name: name.trim() || '無題のコンペ',
-      date,
-      courseName: courseName.trim(),
-      handicapMethod: method,
-    });
-    router.replace({ pathname: '/events/[id]', params: { id: event.id, tab: 'players' } });
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const id = await api.createEvent({
+        name: name.trim() || '無題のコンペ',
+        date,
+        courseName: courseName.trim(),
+        handicapMethod: method,
+        hiddenHoles: pickHiddenHoles(DEFAULT_PARS),
+      });
+      router.replace({ pathname: '/events/[id]', params: { id, tab: 'players' } });
+    } catch (e) {
+      setError(errorMessage(e));
+      setSaving(false);
+    }
   };
 
   return (
@@ -46,9 +57,10 @@ export default function NewEventScreen() {
                 ? '参加者ごとに申告ハンデを入力します。'
                 : 'グロスで順位を決めます。'}
           </Muted>
-          <Muted>各ホールのパーは作成後に「設定」から変更できます。</Muted>
+          <Muted>パー・順位の公開方法などは、作成後に「設定」から変更できます。</Muted>
         </Card>
-        <Button title="作成して参加者を登録" onPress={submit} />
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        <Button title="作成して参加者を登録" onPress={submit} disabled={saving} />
       </ScrollView>
     </Screen>
   );
