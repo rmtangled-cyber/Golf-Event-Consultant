@@ -9,7 +9,6 @@ create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 grant usage on schema auth to anon, authenticated;
-grant usage on schema public to anon, authenticated;
--- Supabase と同じ既定権限（テーブル・関数とも anon / authenticated に付与し、RLS で絞る）
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on functions to anon, authenticated;
+-- 「Automatically expose new tables」がオフのプロジェクトと同じく、表の既定権限は付けない。
+-- migration が必要な権限を自分で付けていることを確かめるため。
+-- （関数の EXECUTE は Postgres の既定どおり PUBLIC に付く）

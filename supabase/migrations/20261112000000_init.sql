@@ -431,7 +431,22 @@ begin
   where id = a.id;
 end $$;
 
--- anon は関数だけ。テーブルの既定権限は RLS で閉じているが、念のため明示的に外す
+-- ---------------------------------------------------------------------------
+-- 権限
+-- プロジェクト作成時の「Automatically expose new tables」がオフでも動くよう、
+-- 必要な権限はすべてここで明示的に付ける（オンの場合も結果は同じ）
+-- ---------------------------------------------------------------------------
+
+grant usage on schema public to anon, authenticated;
+
+-- 幹事（ログイン済み）は RLS の範囲で表を読み書きできる
+grant select, insert, update, delete on
+  public.events, public.groups, public.players, public.scores, public.special_awards, public.profiles
+  to authenticated;
+grant select on public.event_organizers to authenticated;
+grant execute on function public.is_organizer(uuid) to authenticated;
+
+-- anon は関数だけ。表には一切触れない
 revoke all on all tables in schema public from anon;
 revoke execute on function public.create_event(text, date, text, text, smallint[]) from public, anon;
 revoke execute on function public.join_event_as_organizer(text) from public, anon;
