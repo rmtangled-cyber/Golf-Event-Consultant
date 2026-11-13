@@ -81,7 +81,7 @@ export default function GroupInputScreen() {
         <LiveBanner awards={bundle.awards} announcements={bundle.announcements} players={bundle.allPlayers} />
         {final && <Notice tone="success">結果が確定しました。閲覧リンクから順位を確認できます。</Notice>}
         {!final && submitted && <Notice tone="success">提出済みです。修正が必要なときは幹事に連絡してください。</Notice>}
-        {!readOnly && <SyncStatus pending={outboxState.pending} />}
+        {!readOnly && <SyncStatus pending={outboxState.pending} failing={outboxState.failing} />}
         {outboxState.rejected?.token === token && (
           <Notice tone="danger">
             {outboxState.rejected.count}件の入力を送れませんでした（{errorMessage(new ApiError(outboxState.rejected.code as ApiErrorCode))}）
@@ -127,11 +127,22 @@ export default function GroupInputScreen() {
   );
 }
 
-function SyncStatus({ pending }: { pending: number }) {
-  return pending > 0 ? (
-    <Notice tone="warning">未送信 {pending}件。電波が戻ると自動で送信します（入力は端末に保存済み）。</Notice>
-  ) : (
-    <Notice tone="success">入力はすべて送信済みです。</Notice>
+/**
+ * 送信の状態。普段は1行だけの控えめな表示にして、入力欄の位置がずれないようにする。
+ * 黄色の警告は、実際に送れなかったときだけ。
+ */
+function SyncStatus({ pending, failing }: { pending: number; failing: boolean }) {
+  const [label, color, bg] = failing
+    ? [`⚠ 電波待ち：未送信 ${pending}件（自動で再送）`, '#7A5A0E', '#FDF3DC']
+    : pending > 0
+      ? ['送信中…', colors.muted, 'transparent']
+      : ['✓ すべて送信済み', colors.primaryDark, 'transparent'];
+  return (
+    <View style={[styles.sync, { backgroundColor: bg }]} accessibilityLiveRegion="polite">
+      <Text style={[styles.syncText, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -139,5 +150,7 @@ const styles = StyleSheet.create({
   content: { padding: 12, paddingBottom: 40, gap: 12, maxWidth: 640, width: '100%', alignSelf: 'center' },
   header: { gap: 2 },
   eventName: { fontSize: 18, fontWeight: '800', color: colors.text },
+  sync: { height: 28, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 8 },
+  syncText: { fontSize: 13, fontWeight: '600' },
   link: { color: colors.primary, fontWeight: '700', fontSize: 15, textAlign: 'center', paddingVertical: 8 },
 });

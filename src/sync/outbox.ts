@@ -53,6 +53,8 @@ export type SendFn = (token: string, entries: ScoreEntry[]) => Promise<void>;
 
 export interface OutboxState {
   pending: number;
+  /** 直近の送信が通信エラーで失敗した（電波待ち）。送れている間は false */
+  failing: boolean;
   /** 送れずに捨てた入力（提出済み・結果確定など）。画面で知らせる */
   rejected: { token: string; code: string; count: number } | null;
 }
@@ -63,6 +65,7 @@ export class Outbox {
   private flushing: Promise<void> | null = null;
   private listeners = new Set<(state: OutboxState) => void>();
   private rejected: OutboxState['rejected'] = null;
+  private failing = false;
 
   private storage: KeyValueStorage;
   private send: SendFn;
@@ -92,7 +95,7 @@ export class Outbox {
   }
 
   get state(): OutboxState {
-    return { pending: this.queue.length, rejected: this.rejected };
+    return { pending: this.queue.length, failing: this.failing && this.queue.length > 0, rejected: this.rejected };
   }
 
   subscribe(listener: (state: OutboxState) => void) {
@@ -133,9 +136,15 @@ export class Outbox {
       if (batch.length === 0) continue;
       try {
         await this.send(token, batch.map((i) => i.entry));
+        this.failing = false;
         this.removeSent(batch);
       } catch (error) {
-        if (isRetryable(error)) continue; // 電波が戻ったら送り直す
+        if (isRetryable(error)) {
+          // 電波が戻ったら送り直す
+          this.failing = true;
+          this.emit();
+          continue;
+        }
         // 提出済み・結果確定などで受け付けられない入力は捨てて知らせる
         this.rejected = {
           token,
