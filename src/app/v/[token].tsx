@@ -8,11 +8,20 @@ import { AnnouncementList, LiveBanner } from '@/components/LiveNotices.tsx';
 import { NotificationPanel } from '@/components/NotificationPanel.tsx';
 import { ResultActions } from '@/components/event/ResultActions.tsx';
 import { Card, Muted, Notice, Screen, SectionTitle, colors } from '@/components/ui.tsx';
+import { InstallGate } from '@/components/InstallGate.tsx';
 import { useLoader } from '@/hooks/useLoader.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
 /** 閲覧リンク：順位とドラコン・ニアピン（ログイン不要、15秒ごとに更新） */
-export default function ViewScreen() {
+export default function ViewScreenRoute() {
+  return (
+    <InstallGate>
+      <ViewScreen />
+    </InstallGate>
+  );
+}
+
+function ViewScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { data: bundle, error, loading } = useLoader(() => api.getEventView(token), [token], 15_000);
 

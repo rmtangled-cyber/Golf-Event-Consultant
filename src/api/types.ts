@@ -19,6 +19,8 @@ export interface EventInfo {
   trackPenalties: boolean;
   /** 表示しない定番賞 */
   hiddenAwards: StandardAwardKey[];
+  /** 幹事がコースのパーを確定したか（確定までは参加者登録・リンク配布に進めない） */
+  parsConfirmed?: boolean;
   viewToken: string;
   /** 幹事にだけ返る */
   organizerInviteToken?: string;
@@ -151,6 +153,7 @@ export type EventPatch = Partial<
     | 'trackPutts'
     | 'trackPenalties'
     | 'hiddenAwards'
+    | 'parsConfirmed'
   >
 >;
 

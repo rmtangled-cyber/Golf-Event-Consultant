@@ -45,6 +45,7 @@ const toEvent = (r: Row): EventInfo => ({
   trackPutts: r.track_putts,
   trackPenalties: r.track_penalties,
   hiddenAwards: r.hidden_awards ?? [],
+  parsConfirmed: r.pars_confirmed ?? undefined,
   viewToken: r.view_token,
   organizerInviteToken: r.organizer_invite_token ?? undefined,
 });
@@ -107,6 +108,7 @@ const eventPatchToRow = (p: EventPatch): Row => {
   if (p.trackPutts !== undefined) row.track_putts = p.trackPutts;
   if (p.trackPenalties !== undefined) row.track_penalties = p.trackPenalties;
   if (p.hiddenAwards !== undefined) row.hidden_awards = p.hiddenAwards;
+  if (p.parsConfirmed !== undefined) row.pars_confirmed = p.parsConfirmed;
   return row;
 };
 

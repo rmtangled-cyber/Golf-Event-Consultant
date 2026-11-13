@@ -123,6 +123,7 @@ export class DemoApi implements Api {
       trackPutts: false,
       trackPenalties: false,
       hiddenAwards: [],
+      parsConfirmed: false,
       viewToken: token(),
       organizerInviteToken: token(),
       organizerIds: [DEMO_ORGANIZER.id],

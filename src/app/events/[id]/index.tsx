@@ -5,6 +5,7 @@ import { api } from '@/api/index.ts';
 import { toCompeEvent } from '@/api/toCompeEvent.ts';
 import { ProvisionalSpecials } from '@/components/event/AwardResults.tsx';
 import { AwardsTab } from '@/components/event/AwardsTab.tsx';
+import { CourseSetup } from '@/components/event/CourseSetup.tsx';
 import { LeaderboardTable } from '@/components/event/LeaderboardTable.tsx';
 import { LinksTab } from '@/components/event/LinksTab.tsx';
 import { PlayersTab } from '@/components/event/PlayersTab.tsx';
@@ -58,6 +59,21 @@ export default function EventScreen() {
 
   const compe = toCompeEvent(bundle);
   const props = { bundle, run };
+
+  // パーを確定するまでは、参加者登録やリンク配布に進めない
+  if (!bundle.event.parsConfirmed) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: bundle.event.name }} />
+        {actionError ? (
+          <View style={styles.tabs}>
+            <Notice tone="danger">{actionError}</Notice>
+          </View>
+        ) : null}
+        <CourseSetup {...props} onDone={() => router.setParams({ tab: 'players' })} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen>

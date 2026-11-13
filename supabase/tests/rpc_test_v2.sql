@@ -28,7 +28,7 @@ insert into public.groups (event_id, number) values (:'event_id', 1) returning i
 insert into public.players (event_id, group_id, name) values (:'event_id', :'g1', '山田') returning id as p1 \gset
 insert into public.custom_awards (event_id, title, rule, rank) values (:'event_id', '飛び賞', 'rank', 7);
 insert into public.custom_awards (event_id, title, rule, winner_player_id) values (:'event_id', 'ラッキー賞', 'manual', :'p1');
-update public.events set hidden_awards = '{booby_maker}' where id = :'event_id';
+update public.events set hidden_awards = '{booby_maker}', pars_confirmed = true where id = :'event_id';
 insert into public.announcements (event_id, message) values (:'event_id', '表彰式は17:30から') returning id as ann \gset
 select view_token as vt from public.events where id = :'event_id' \gset
 reset role;
