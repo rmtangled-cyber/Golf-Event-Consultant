@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { AwardInfo, EventInfo, PlayerInfo, ScoreEntry, ScoreInfo } from '@/api/types.ts';
 import { Button, Card, Chip, Muted, SectionTitle, Stepper, colors, formatToPar, strokeColor } from '@/components/ui.tsx';
 import { nowIso } from '@/lib/errors.ts';
+import { applyPending } from '@/sync/outbox.ts';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
@@ -32,7 +33,19 @@ export interface GroupScoreEditorProps {
 
 /** 1ホールずつ、組の全員分の打数を入力する */
 export function GroupScoreEditor(props: GroupScoreEditorProps) {
-  const { event, players, scores, awards, allPlayers, awardCandidates, readOnly, onChange, onAwardWinner } = props;
+  const { event, players, scores: propScores, awards, allPlayers, awardCandidates, readOnly, onChange, onAwardWinner } = props;
+  // 押した瞬間の入力を覚えておく。素早く連打したり、すぐ「次へ」を押したりしても、
+  // 画面の更新を待たずに最新の値から計算する（古い値で上書きしない）
+  const typedRef = useRef(new Map<string, ScoreEntry>());
+  const [typed, setTyped] = useState<ScoreEntry[]>([]);
+  const scores = applyPending(propScores, typed);
+  const latest = (playerId: string, hole: number) =>
+    applyPending(propScores, [...typedRef.current.values()]).find((s) => s.playerId === playerId && s.hole === hole);
+  const emit = (entries: ScoreEntry[]) => {
+    for (const e of entries) typedRef.current.set(`${e.playerId}|${e.hole}`, e);
+    setTyped([...typedRef.current.values()]);
+    onChange(entries);
+  };
   const scoreOf = (playerId: string, hole: number) => scores.find((s) => s.playerId === playerId && s.hole === hole);
   const holeDone = (hole: number) => players.length > 0 && players.every((p) => scoreOf(p.id, hole));
   const firstOpen = HOLES.find((h) => !holeDone(h)) ?? 1;
@@ -40,7 +53,7 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
   const par = event.pars[hole - 1];
 
   const entryFor = (playerId: string, patch: Partial<ScoreEntry>): ScoreEntry => {
-    const current = scoreOf(playerId, hole);
+    const current = latest(playerId, hole);
     return {
       playerId,
       hole,
@@ -54,8 +67,8 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
 
   const confirmAndNext = () => {
     // 未入力の人は、表示中の値（パー）で確定する
-    const missing = players.filter((p) => !scoreOf(p.id, hole)).map((p) => entryFor(p.id, {}));
-    if (missing.length) onChange(missing);
+    const missing = players.filter((p) => !latest(p.id, hole)).map((p) => entryFor(p.id, {}));
+    if (missing.length) emit(missing);
     if (hole < 18) setHole(hole + 1);
   };
 
@@ -98,7 +111,7 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
                 <Pressable
                   accessibilityLabel={`${p.name}の打数を減らす`}
                   disabled={readOnly}
-                  onPress={() => onChange([entryFor(p.id, { strokes: Math.max(1, shown - 1) })])}
+                  onPress={() => emit([entryFor(p.id, { strokes: Math.max(1, (latest(p.id, hole)?.strokes ?? par) - 1) })])}
                   style={styles.bigBtn}
                 >
                   <Text style={styles.bigBtnText}>−</Text>
@@ -106,14 +119,14 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
                 <Pressable
                   accessibilityLabel={`${p.name}の打数を確定`}
                   disabled={readOnly}
-                  onPress={() => !s && onChange([entryFor(p.id, {})])}
+                  onPress={() => !latest(p.id, hole) && emit([entryFor(p.id, {})])}
                 >
                   <Text style={[styles.strokes, { color: s ? strokeColor(s.strokes, par) : colors.border }]}>{shown}</Text>
                 </Pressable>
                 <Pressable
                   accessibilityLabel={`${p.name}の打数を増やす`}
                   disabled={readOnly}
-                  onPress={() => onChange([entryFor(p.id, { strokes: Math.min(30, shown + 1) })])}
+                  onPress={() => emit([entryFor(p.id, { strokes: Math.min(30, (latest(p.id, hole)?.strokes ?? par) + 1) })])}
                   style={styles.bigBtn}
                 >
                   <Text style={styles.bigBtnText}>＋</Text>
@@ -130,7 +143,7 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
                         min={0}
                         max={10}
                         disabled={readOnly}
-                        onChange={(putts) => onChange([entryFor(p.id, { putts })])}
+                        onChange={(putts) => emit([entryFor(p.id, { putts })])}
                       />
                     </View>
                   )}
@@ -143,7 +156,7 @@ export function GroupScoreEditor(props: GroupScoreEditorProps) {
                         min={0}
                         max={10}
                         disabled={readOnly}
-                        onChange={(penalties) => onChange([entryFor(p.id, { penalties })])}
+                        onChange={(penalties) => emit([entryFor(p.id, { penalties })])}
                       />
                     </View>
                   )}

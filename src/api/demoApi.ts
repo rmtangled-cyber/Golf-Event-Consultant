@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Api,
+  AnnouncementInfo,
   AwardInfo,
   AwardPatch,
+  CustomAwardInfo,
+  CustomAwardPatch,
   EventBundle,
   EventInfo,
   EventPatch,
@@ -30,6 +33,8 @@ interface DemoDb {
   players: (PlayerInfo & { eventId: string })[];
   scores: (ScoreInfo & { eventId: string })[];
   awards: (AwardInfo & { eventId: string })[];
+  customAwards?: (CustomAwardInfo & { eventId: string })[];
+  announcements?: (AnnouncementInfo & { eventId: string })[];
 }
 
 const DB_KEY = 'golf-compe/demo-db/v1';
@@ -53,6 +58,8 @@ export class DemoApi implements Api {
     // 別のタブ（組代表の画面など）での変更も見えるよう、毎回読み直す
     const raw = await AsyncStorage.getItem(DB_KEY);
     this.db = raw ? JSON.parse(raw) : { events: [], groups: [], players: [], scores: [], awards: [] };
+    this.db!.customAwards ??= [];
+    this.db!.announcements ??= [];
     return this.db!;
   }
 
@@ -115,6 +122,7 @@ export class DemoApi implements Api {
       status: 'open' as const,
       trackPutts: false,
       trackPenalties: false,
+      hiddenAwards: [],
       viewToken: token(),
       organizerInviteToken: token(),
       organizerIds: [DEMO_ORGANIZER.id],
@@ -135,6 +143,8 @@ export class DemoApi implements Api {
       players: db.players.filter((p) => p.eventId === eventId).sort((a, b) => a.sort - b.sort),
       scores: db.scores.filter((s) => s.eventId === eventId),
       awards: db.awards.filter((a) => a.eventId === eventId).sort((a, b) => a.hole - b.hole),
+      customAwards: db.customAwards!.filter((c) => c.eventId === eventId).sort((a, b) => a.sort - b.sort),
+      announcements: this.announcementsOf(db, eventId),
       scoresHidden: false,
     });
   }
@@ -277,6 +287,55 @@ export class DemoApi implements Api {
     await this.save();
   }
 
+  async addCustomAward(eventId: string, input: { title: string; rule: CustomAwardInfo['rule']; rank?: number }) {
+    const db = await this.load();
+    this.requireOrganizer(db, eventId);
+    db.customAwards!.push({
+      id: id(),
+      eventId,
+      title: input.title,
+      rule: input.rule,
+      rank: input.rank ?? null,
+      winnerPlayerId: null,
+      sort: Date.now(),
+    });
+    await this.save();
+  }
+
+  async updateCustomAward(awardId: string, patch: CustomAwardPatch) {
+    const db = await this.load();
+    const award = db.customAwards!.find((a) => a.id === awardId);
+    if (!award) throw new ApiError('forbidden');
+    this.requireOrganizer(db, award.eventId);
+    Object.assign(award, patch);
+    await this.save();
+  }
+
+  async deleteCustomAward(awardId: string) {
+    const db = await this.load();
+    const award = db.customAwards!.find((a) => a.id === awardId);
+    if (!award) return;
+    this.requireOrganizer(db, award.eventId);
+    db.customAwards = db.customAwards!.filter((a) => a.id !== awardId);
+    await this.save();
+  }
+
+  async postAnnouncement(eventId: string, message: string) {
+    const db = await this.load();
+    this.requireOrganizer(db, eventId);
+    db.announcements!.push({ id: id(), eventId, message, createdAt: new Date().toISOString() });
+    await this.save();
+  }
+
+  // --- プッシュ通知（デモでは使えない。アプリ内のお知らせだけ） ---
+
+  async getPushPublicKey() {
+    return null;
+  }
+  async savePushSubscription() {}
+  async deletePushSubscription() {}
+  async notifyAward() {}
+
   // --- リンク ---
 
   private publicEvent(event: DemoDb['events'][number]): EventInfo {
@@ -300,6 +359,8 @@ export class DemoApi implements Api {
         .map((p) => ({ ...p, holesPlayed: scores.filter((s) => s.playerId === p.id).length })),
       scores: show ? scores : [],
       awards: db.awards.filter((a) => a.eventId === event.id),
+      customAwards: event.status === 'final' ? db.customAwards!.filter((c) => c.eventId === event.id) : [],
+      announcements: this.announcementsOf(db, event.id),
       scoresHidden: !show,
     });
   }
@@ -320,7 +381,15 @@ export class DemoApi implements Api {
       allPlayers: db.players
         .filter((p) => p.eventId === event.id)
         .map((p) => ({ id: p.id, groupId: p.groupId, name: p.name })),
+      announcements: this.announcementsOf(db, event.id),
     });
+  }
+
+  private announcementsOf(db: DemoDb, eventId: string) {
+    return db.announcements!
+      .filter((a) => a.eventId === eventId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 5);
   }
 
   private openGroup(db: DemoDb, inputToken: string) {

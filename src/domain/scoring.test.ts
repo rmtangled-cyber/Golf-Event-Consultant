@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CompeEvent } from './types.ts';
-import { DEFAULT_PARS, awards, leaderboard, pickHiddenHoles, shinPeoriaHandicap } from './scoring.ts';
+import { DEFAULT_PARS, awards, ceremonySequence, leaderboard, pickHiddenHoles, resultsCsv, shinPeoriaHandicap } from './scoring.ts';
 
 const HIDDEN = [1, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 17]; // パー合計48
 
@@ -101,4 +101,67 @@ test('隠しホール: 12ホール・前後半6ずつ・合計パー48', () => {
     assert.equal(holes.filter((h) => h <= 9).length, 6);
     assert.equal(holes.reduce((acc, h) => acc + DEFAULT_PARS[h - 1], 0), 48);
   }
+});
+
+/** A〜G の7人。i 番目の人は全ホール パー+i（A が1位、G が最下位） */
+function sevenPlayers(overrides: Partial<CompeEvent> = {}) {
+  const players = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name, i) => ({ id: String(i), name, group: 1 + Math.floor(i / 4) }));
+  const scores = Object.fromEntries(players.map((p, i) => [p.id, flat(i)]));
+  return event({ handicapMethod: 'none', players, scores, ...overrides });
+}
+
+test('追加の賞：飛び賞・OB王（同数は全員）・手動', () => {
+  const e = sevenPlayers({
+    customAwards: [
+      { id: 'c1', title: '飛び賞', rule: 'rank', rank: 4 },
+      { id: 'c2', title: 'OB王', rule: 'most_penalties' },
+      { id: 'c3', title: 'ラッキー賞', rule: 'manual', winnerPlayerId: '2' },
+      { id: 'c4', title: '最多パット', rule: 'most_putts' },
+    ],
+    stats: {
+      '0': { putts: 30, penalties: 1 },
+      '1': { putts: null, penalties: 3 },
+      '5': { putts: null, penalties: 3 },
+    },
+  });
+  const custom = awards(e).filter((a) => a.key === 'custom').map((a) => [a.title, a.playerName, a.detail]);
+  assert.deepEqual(custom, [
+    ['飛び賞', 'D', '4位'],
+    ['OB王', 'B', '3回'],
+    ['OB王', 'F', '3回'],
+    ['ラッキー賞', 'C', undefined],
+    ['最多パット', 'A', '30パット'],
+  ]);
+});
+
+test('定番賞は非表示にできる（優勝は消せない）', () => {
+  const e = sevenPlayers({ hiddenAwards: ['booby', 'booby_maker', 'best_gross'] });
+  const titles = awards(e).map((a) => a.title);
+  assert.deepEqual(titles, ['優勝', '準優勝', '3位']);
+});
+
+test('表彰式の発表順：飛び賞（下位から）→ ドラコン → ブービーメーカー … → 優勝', () => {
+  const e = sevenPlayers({
+    customAwards: [
+      { id: 'c1', title: '飛び賞', rule: 'rank', rank: 4 },
+      { id: 'c2', title: '飛び賞', rule: 'rank', rank: 6 },
+    ],
+    specialAwards: [{ id: 's', kind: 'drive', hole: 4, winnerPlayerId: '3' }],
+  });
+  assert.deepEqual(
+    ceremonySequence(e).map((a) => `${a.title}:${a.playerName}`),
+    ['飛び賞:F', '飛び賞:D', 'ドラコン（4番）:D', 'ブービーメーカー:G', 'ブービー賞:F', 'ベストグロス:A', '3位:C', '準優勝:B', '優勝:A'],
+  );
+});
+
+test('CSV：パー行・全ホール・表彰。カンマを含む名前は引用符で囲む', () => {
+  const e = sevenPlayers();
+  e.players[0].name = '山田, 太郎';
+  const csv = resultsCsv(e);
+  const lines = csv.split('\r\n');
+  assert.equal(lines[2], ['順位', '名前', '組', ...Array.from({ length: 18 }, (_, i) => i + 1), 'OUT', 'IN', 'グロス', 'HC', 'ネット'].join(','));
+  assert.ok(lines[3].startsWith(',パー,,4,4,3,5'));
+  assert.ok(lines[4].startsWith('1,"山田, 太郎",1,4,4,3'));
+  assert.ok(lines[4].endsWith(',36,36,72,0,72'));
+  assert.ok(csv.includes('\r\n優勝,"山田, 太郎",グロス 72\r\n'));
 });

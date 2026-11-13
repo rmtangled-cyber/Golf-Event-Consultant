@@ -7,5 +7,6 @@ DB=golf_rpc_test
 dropdb --if-exists "$DB"
 createdb "$DB"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/supabase_stub.sql
-for f in supabase/migrations/*.sql; do psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"; done
+for f in $(ls supabase/migrations/*.sql | sort); do psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"; done
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/rpc_test.sql
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/rpc_test_v2.sql

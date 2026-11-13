@@ -60,6 +60,7 @@ export default function OrganizerGroupScreen() {
           onAwardWinner={(awardId, playerId, note) =>
             void api
               .updateAward(awardId, { winnerPlayerId: playerId, note })
+              .then(() => (playerId ? api.notifyAward(awardId) : undefined))
               .catch((e) => setError(errorMessage(e)))
               .then(reload)
           }

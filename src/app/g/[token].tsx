@@ -6,6 +6,8 @@ import { ApiError } from '@/api/types.ts';
 import type { ApiErrorCode, ScoreEntry } from '@/api/types.ts';
 import { confirm } from '@/components/confirm.ts';
 import { GroupScoreEditor } from '@/components/GroupScoreEditor.tsx';
+import { AnnouncementList, LiveBanner } from '@/components/LiveNotices.tsx';
+import { NotificationPanel } from '@/components/NotificationPanel.tsx';
 import { Button, Card, Muted, Notice, Screen, colors } from '@/components/ui.tsx';
 import { useLoader } from '@/hooks/useLoader.ts';
 import { useOutbox } from '@/hooks/useOutbox.ts';
@@ -76,6 +78,7 @@ export default function GroupInputScreen() {
           </Muted>
         </View>
 
+        <LiveBanner awards={bundle.awards} announcements={bundle.announcements} players={bundle.allPlayers} />
         {final && <Notice tone="success">結果が確定しました。閲覧リンクから順位を確認できます。</Notice>}
         {!final && submitted && <Notice tone="success">提出済みです。修正が必要なときは幹事に連絡してください。</Notice>}
         {!readOnly && <SyncStatus pending={outboxState.pending} />}
@@ -99,6 +102,7 @@ export default function GroupInputScreen() {
           onAwardWinner={(awardId, playerId, note) =>
             void api
               .setAwardWinner(token, awardId, playerId, note)
+              .then(() => (playerId ? api.notifyAward(awardId) : undefined))
               .catch((e) => setActionError(errorMessage(e)))
               .then(reload)
           }
@@ -111,6 +115,9 @@ export default function GroupInputScreen() {
             <Button title="スコアを提出する" onPress={submit} disabled={!complete || submitting} />
           </Card>
         )}
+
+        <AnnouncementList announcements={bundle.announcements} />
+        {!final && <NotificationPanel viewToken={bundle.event.viewToken} />}
 
         <Link href={{ pathname: '/v/[token]', params: { token: bundle.event.viewToken } }} style={styles.link}>
           順位を見る →

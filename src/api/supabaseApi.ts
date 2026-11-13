@@ -4,8 +4,11 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import type {
   Api,
+  AnnouncementInfo,
   AwardInfo,
   AwardPatch,
+  CustomAwardInfo,
+  CustomAwardPatch,
   EventBundle,
   EventInfo,
   EventPatch,
@@ -15,6 +18,8 @@ import type {
   Organizer,
   PlayerInfo,
   PlayerPatch,
+  PushPrefs,
+  PushTarget,
   ScoreEntry,
   ScoreInfo,
 } from './types.ts';
@@ -39,6 +44,7 @@ const toEvent = (r: Row): EventInfo => ({
   status: r.status,
   trackPutts: r.track_putts,
   trackPenalties: r.track_penalties,
+  hiddenAwards: r.hidden_awards ?? [],
   viewToken: r.view_token,
   organizerInviteToken: r.organizer_invite_token ?? undefined,
 });
@@ -76,6 +82,17 @@ const toAward = (r: Row): AwardInfo => ({
   note: r.note ?? '',
 });
 
+const toCustomAward = (r: Row): CustomAwardInfo => ({
+  id: r.id,
+  title: r.title,
+  rule: r.rule,
+  rank: r.rank ?? null,
+  winnerPlayerId: r.winner_player_id ?? null,
+  sort: r.sort ?? 0,
+});
+
+const toAnnouncement = (r: Row): AnnouncementInfo => ({ id: r.id, message: r.message, createdAt: r.created_at });
+
 const eventPatchToRow = (p: EventPatch): Row => {
   const row: Row = {};
   if (p.name !== undefined) row.name = p.name;
@@ -89,6 +106,7 @@ const eventPatchToRow = (p: EventPatch): Row => {
   if (p.status !== undefined) row.status = p.status;
   if (p.trackPutts !== undefined) row.track_putts = p.trackPutts;
   if (p.trackPenalties !== undefined) row.track_penalties = p.trackPenalties;
+  if (p.hiddenAwards !== undefined) row.hidden_awards = p.hiddenAwards;
   return row;
 };
 
@@ -237,12 +255,19 @@ export class SupabaseApi implements Api {
 
   getEvent(eventId: string) {
     return guard(async (): Promise<EventBundle | null> => {
-      const [event, groups, players, scores, awards] = await Promise.all([
+      const [event, groups, players, scores, awards, customAwards, announcements] = await Promise.all([
         this.client.from('events').select('*').eq('id', eventId).maybeSingle(),
         this.client.from('groups').select('*').eq('event_id', eventId).order('number'),
         this.client.from('players').select('*').eq('event_id', eventId).order('sort').order('created_at'),
         this.client.from('scores').select('*').eq('event_id', eventId),
         this.client.from('special_awards').select('*').eq('event_id', eventId).order('hole'),
+        this.client.from('custom_awards').select('*').eq('event_id', eventId).order('sort').order('created_at'),
+        this.client
+          .from('announcements')
+          .select('*')
+          .eq('event_id', eventId)
+          .order('created_at', { ascending: false })
+          .limit(5),
       ]);
       const eventRow = check(event) as Row | null;
       if (!eventRow) return null;
@@ -252,6 +277,8 @@ export class SupabaseApi implements Api {
         players: (check(players) as Row[]).map(toPlayer),
         scores: (check(scores) as Row[]).map(toScore),
         awards: (check(awards) as Row[]).map(toAward),
+        customAwards: (check(customAwards) as Row[]).map(toCustomAward),
+        announcements: (check(announcements) as Row[]).map(toAnnouncement),
         scoresHidden: false,
       };
     });
@@ -366,6 +393,80 @@ export class SupabaseApi implements Api {
     });
   }
 
+  addCustomAward(eventId: string, input: { title: string; rule: CustomAwardInfo['rule']; rank?: number }) {
+    return guard(async () => {
+      check(
+        await this.client.from('custom_awards').insert({
+          event_id: eventId,
+          title: input.title,
+          rule: input.rule,
+          rank: input.rank ?? null,
+          sort: Date.now() % 2_000_000_000,
+        }),
+      );
+    });
+  }
+
+  updateCustomAward(awardId: string, patch: CustomAwardPatch) {
+    return guard(async () => {
+      const row: Row = {};
+      if (patch.title !== undefined) row.title = patch.title;
+      if (patch.rank !== undefined) row.rank = patch.rank;
+      if (patch.winnerPlayerId !== undefined) row.winner_player_id = patch.winnerPlayerId;
+      check(await this.client.from('custom_awards').update(row).eq('id', awardId));
+    });
+  }
+
+  deleteCustomAward(awardId: string) {
+    return guard(async () => {
+      check(await this.client.from('custom_awards').delete().eq('id', awardId));
+    });
+  }
+
+  postAnnouncement(eventId: string, message: string) {
+    return guard(async () => {
+      const row = check(
+        await this.client.from('announcements').insert({ event_id: eventId, message }).select('id').single(),
+      ) as Row;
+      // 通知の送信に失敗しても、連絡自体はアプリに表示される
+      await this.client.functions.invoke('push', { body: { action: 'announcement', announcementId: row.id } });
+    });
+  }
+
+  // --- プッシュ通知 ---
+
+  async getPushPublicKey() {
+    const { data, error } = await this.client.functions.invoke('push', { body: { action: 'vapid' } });
+    if (error || !data?.publicKey) return null;
+    return data.publicKey as string;
+  }
+
+  savePushSubscription(viewToken: string, target: PushTarget, prefs: PushPrefs) {
+    return guard(async () => {
+      check(
+        await this.client.rpc('save_push_subscription', {
+          p_view_token: viewToken,
+          p_endpoint: target.endpoint,
+          p_p256dh: target.p256dh,
+          p_auth: target.auth,
+          p_drive_pin: prefs.drivePin,
+          p_announcements: prefs.announcements,
+        }),
+      );
+    });
+  }
+
+  deletePushSubscription(viewToken: string, endpoint: string) {
+    return guard(async () => {
+      check(await this.client.rpc('delete_push_subscription', { p_view_token: viewToken, p_endpoint: endpoint }));
+    });
+  }
+
+  async notifyAward(awardId: string) {
+    // 通知は「おまけ」なので、失敗しても入力の流れは止めない
+    await this.client.functions.invoke('push', { body: { action: 'award', awardId } }).catch(() => undefined);
+  }
+
   // --- リンク ---
 
   getEventView(viewToken: string) {
@@ -378,6 +479,8 @@ export class SupabaseApi implements Api {
         players: data.players.map(toPlayer),
         scores: data.scores.map(toScore),
         awards: data.awards.map(toAward),
+        customAwards: (data.custom_awards ?? []).map(toCustomAward),
+        announcements: (data.announcements ?? []).map(toAnnouncement),
         scoresHidden: data.scores_hidden,
       };
     });
@@ -394,6 +497,7 @@ export class SupabaseApi implements Api {
         scores: data.scores.map(toScore),
         awards: data.awards.map(toAward),
         allPlayers: data.all_players.map((p: Row) => ({ id: p.id, groupId: p.group_id ?? null, name: p.name })),
+        announcements: (data.announcements ?? []).map(toAnnouncement),
       };
     });
   }

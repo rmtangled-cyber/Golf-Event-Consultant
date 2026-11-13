@@ -4,6 +4,9 @@ import { api } from '@/api/index.ts';
 import { toCompeEvent } from '@/api/toCompeEvent.ts';
 import { AwardResults, ProvisionalSpecials } from '@/components/event/AwardResults.tsx';
 import { LeaderboardTable } from '@/components/event/LeaderboardTable.tsx';
+import { AnnouncementList, LiveBanner } from '@/components/LiveNotices.tsx';
+import { NotificationPanel } from '@/components/NotificationPanel.tsx';
+import { ResultActions } from '@/components/event/ResultActions.tsx';
 import { Card, Muted, Notice, Screen, SectionTitle, colors } from '@/components/ui.tsx';
 import { useLoader } from '@/hooks/useLoader.ts';
 import { errorMessage } from '@/lib/errors.ts';
@@ -41,13 +44,22 @@ export default function ViewScreen() {
             {event.date} {event.courseName}
           </Muted>
         </View>
+        <LiveBanner
+          awards={bundle.awards}
+          announcements={bundle.announcements}
+          players={bundle.players}
+          groups={bundle.groups}
+        />
         {error ? <Notice tone="warning">最新の情報を読み込めませんでした。</Notice> : null}
+        {!final && <NotificationPanel viewToken={token} />}
+        <AnnouncementList announcements={bundle.announcements} />
 
         {final ? (
           <>
             <Notice tone="success">結果が確定しました</Notice>
             <AwardResults event={compe} />
             <LeaderboardTable event={compe} />
+            <ResultActions event={compe} />
           </>
         ) : bundle.scoresHidden ? (
           <>
