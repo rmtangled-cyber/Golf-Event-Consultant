@@ -3,7 +3,7 @@
   "short_name": "ゴルフコンペ",
   "description": "ゴルフコンペの集計を、みんなのスマホで",
   "display": "standalone",
-  "background_color": "#F4F6F4",
+  "background_color": "#000712",
   "theme_color": "#1B6B3A",
   "lang": "ja",
   "icons": [
