@@ -19,6 +19,20 @@
 - **順位の公開**：「プレー中も公開」か「表彰式まで非公開」をコンペごとに選択
 - **新ペリア**：隠しホールは結果確定まで幹事以外には非公開。プレー中の閲覧リンクはグロスの暫定順位、確定後にハンデ・ネット・表彰を表示
 
+### 結果の共有（v2）
+
+- **表彰式モード**：下位の賞から1つずつ発表する全画面表示（タップ・→キーで進む）
+- **結果画像**：表彰と順位を縦長の画像にして、LINE などで共有・保存
+- **印刷・PDF**：全員のホールごとのスコア・ハンデ・表彰を A4 横で印刷（ブラウザの印刷から PDF 保存）
+- **CSV**：Excel で開ける全スコア
+- **賞の設定**：定番賞（準優勝・3位・ベスグロ・ブービー・ブービーメーカー）の表示切替、飛び賞・OB王・最多パット・自由に選ぶ賞の追加
+
+### 通知（v2・Web）
+
+- **ドラコン・ニアピンの暫定トップ更新**と**幹事からの連絡**をプッシュ通知（種類ごとにオン・オフ）
+- iPhone は「ホーム画面に追加」した場合のみ通知が届くため、手順を画面で案内。LINE 内ブラウザでは Safari で開き直すよう案内
+- 通知を許可していない人にも、アプリを開いている間は画面上部にお知らせを表示
+
 ## 動かしてみる（デモモード）
 
 Supabase を設定しなくても、デモモードで全画面を試せます（データはそのブラウザの中だけに保存）。
@@ -48,6 +62,15 @@ npx supabase login
 npx supabase link --project-ref <プロジェクトID>
 npx supabase secrets set LINE_CHANNEL_ID=<チャネルID> LINE_CHANNEL_SECRET=<チャネルシークレット>
 npx supabase functions deploy line-auth --no-verify-jwt
+```
+
+### 2.5 結果共有・通知（v2）の追加
+
+1. SQL Editor で `supabase/migrations/20261114000000_results_and_push.sql` を実行
+2. 通知を送る関数をデプロイ（JWT の確認はオフ。通知の鍵は初回に自動で作られるので secrets は不要）
+
+```bash
+npx supabase functions deploy push --no-verify-jwt
 ```
 
 ### 3. アプリの設定
@@ -89,6 +112,8 @@ src/
     index.tsx               トップ（幹事のログイン・コンペ一覧）
     events/new.tsx          コンペ作成
     events/[id]/            幹事のコンペ管理（順位・スコア・参加者・リンク・表彰・設定）
+    events/[id]/ceremony    表彰式モード
+    events/[id]/print       印刷・PDF 用の順位表
     g/[token].tsx           組の入力リンク
     v/[token].tsx           閲覧リンク
     join/[token].tsx        幹事招待リンク
@@ -100,6 +125,8 @@ src/
 supabase/
   migrations/               テーブル・権限（RLS）・リンク用の関数
   functions/line-auth/      LINE ログイン → Supabase セッション
+  functions/push/           プッシュ通知の送信（鍵の自動作成を含む）
+public/                     manifest・Service Worker・アイコン（ホーム画面追加と通知用）
   tests/                    migration のテスト
 ```
 
@@ -111,7 +138,5 @@ supabase/
 ## v1 に入っていないもの（仕様書のロードマップ）
 
 - 会・会員名簿・年間ランキング・個人成績
-- プッシュ通知（ドラコン・ニアピン更新、幹事からの連絡）
-- 結果画像・表彰式モード・PDF/CSV
 - 9ホールコンペ
 - iOS / Android アプリ（アプリ版の LINE ログインは未対応）

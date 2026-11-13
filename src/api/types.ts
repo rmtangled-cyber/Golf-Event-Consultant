@@ -1,4 +1,4 @@
-import type { HandicapMethod, SpecialAwardKind } from '@/domain/types.ts';
+import type { CustomAwardRule, HandicapMethod, SpecialAwardKind, StandardAwardKey } from '@/domain/types.ts';
 
 export type Visibility = 'live' | 'hidden';
 export type EventStatus = 'open' | 'final';
@@ -17,6 +17,8 @@ export interface EventInfo {
   status: EventStatus;
   trackPutts: boolean;
   trackPenalties: boolean;
+  /** 表示しない定番賞 */
+  hiddenAwards: StandardAwardKey[];
   viewToken: string;
   /** 幹事にだけ返る */
   organizerInviteToken?: string;
@@ -57,6 +59,23 @@ export interface AwardInfo {
   note: string;
 }
 
+/** 幹事が追加した賞（飛び賞・OB王など） */
+export interface CustomAwardInfo {
+  id: string;
+  title: string;
+  rule: CustomAwardRule;
+  rank: number | null;
+  winnerPlayerId: string | null;
+  sort: number;
+}
+
+/** 幹事からの連絡 */
+export interface AnnouncementInfo {
+  id: string;
+  message: string;
+  createdAt: string;
+}
+
 /** コンペ全体（幹事画面・閲覧リンク） */
 export interface EventBundle {
   event: EventInfo;
@@ -64,6 +83,10 @@ export interface EventBundle {
   players: PlayerInfo[];
   scores: ScoreInfo[];
   awards: AwardInfo[];
+  /** 閲覧リンクでは結果確定まで空 */
+  customAwards: CustomAwardInfo[];
+  /** 新しい順に最大5件 */
+  announcements: AnnouncementInfo[];
   /** 「結果確定まで非公開」でスコアが返っていない */
   scoresHidden: boolean;
 }
@@ -77,6 +100,7 @@ export interface GroupBundle {
   awards: AwardInfo[];
   /** 暫定トップの名前表示用 */
   allPlayers: { id: string; groupId: string | null; name: string }[];
+  announcements: AnnouncementInfo[];
 }
 
 /** 1ホール分の入力。strokes が null ならそのホールを未入力に戻す */
@@ -126,8 +150,29 @@ export type EventPatch = Partial<
     | 'status'
     | 'trackPutts'
     | 'trackPenalties'
+    | 'hiddenAwards'
   >
 >;
+
+export interface CustomAwardPatch {
+  title?: string;
+  rank?: number | null;
+  winnerPlayerId?: string | null;
+}
+
+/** ブラウザの通知の宛先（PushSubscription から取り出したもの） */
+export interface PushTarget {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export interface PushPrefs {
+  /** ドラコン・ニアピンの暫定トップ更新 */
+  drivePin: boolean;
+  /** 幹事からの連絡 */
+  announcements: boolean;
+}
 
 export interface PlayerPatch {
   name?: string;
@@ -194,6 +239,11 @@ export interface Api {
   addAward(eventId: string, kind: AwardInfo['kind'], hole: number): Promise<void>;
   updateAward(awardId: string, patch: AwardPatch): Promise<void>;
   deleteAward(awardId: string): Promise<void>;
+  addCustomAward(eventId: string, input: { title: string; rule: CustomAwardRule; rank?: number }): Promise<void>;
+  updateCustomAward(awardId: string, patch: CustomAwardPatch): Promise<void>;
+  deleteCustomAward(awardId: string): Promise<void>;
+  /** 連絡を保存し、通知を受け取る設定の人に送る */
+  postAnnouncement(eventId: string, message: string): Promise<void>;
 
   // --- リンクを持つ人（ログインなし） ---
   getEventView(viewToken: string): Promise<EventBundle | null>;
@@ -201,4 +251,12 @@ export interface Api {
   saveGroupScores(inputToken: string, entries: ScoreEntry[]): Promise<void>;
   submitGroup(inputToken: string): Promise<void>;
   setAwardWinner(inputToken: string, awardId: string, playerId: string | null, note: string): Promise<void>;
+
+  // --- プッシュ通知 ---
+  /** 通知の署名に使う公開鍵。通知を使えない環境（デモなど）は null */
+  getPushPublicKey(): Promise<string | null>;
+  savePushSubscription(viewToken: string, target: PushTarget, prefs: PushPrefs): Promise<void>;
+  deletePushSubscription(viewToken: string, endpoint: string): Promise<void>;
+  /** ドラコン・ニアピンの暫定トップが変わったら通知する（変わっていなければ何もしない） */
+  notifyAward(awardId: string): Promise<void>;
 }

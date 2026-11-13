@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '@/api/index.ts';
 import { confirm } from '@/components/confirm.ts';
+import { AnnouncementList } from '@/components/LiveNotices.tsx';
 import { Button, Card, Muted, Notice, SectionTitle, colors } from '@/components/ui.tsx';
 import type { OrganizerTabProps } from './types.ts';
 
@@ -22,6 +24,7 @@ export function ScoresTab({ bundle, run }: OrganizerTabProps) {
 
   return (
     <View style={{ gap: 12 }}>
+      <AnnouncementComposer bundle={bundle} run={run} />
       <Card>
         <SectionTitle>結果の確定</SectionTitle>
         {final ? (
@@ -100,7 +103,47 @@ export function ScoresTab({ bundle, run }: OrganizerTabProps) {
   );
 }
 
+/** 幹事から全員への連絡（通知を受け取る設定の人に届き、アプリにも表示される） */
+function AnnouncementComposer({ bundle, run }: OrganizerTabProps) {
+  const [message, setMessage] = useState('');
+  const text = message.trim();
+  const send = () =>
+    confirm(`全員に連絡しますか？\n\n「${text}」`, () => {
+      setMessage('');
+      void run(() => api.postAnnouncement(bundle.event.id, text));
+    }, '送信');
+  return (
+    <>
+      <Card>
+        <SectionTitle>📣 全員に連絡</SectionTitle>
+        <Muted>閲覧リンク・入力リンクの画面に表示され、通知を受け取る設定の人には通知も届きます。</Muted>
+        <TextInput
+          value={message}
+          onChangeText={setMessage}
+          placeholder="例：表彰式は17:30から2階レストランです"
+          placeholderTextColor={colors.muted}
+          maxLength={200}
+          multiline
+          style={styles.message}
+        />
+        <Button title="送信" onPress={send} disabled={!text} />
+      </Card>
+      <AnnouncementList announcements={bundle.announcements} title="送った連絡" />
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
+  message: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    padding: 10,
+    minHeight: 64,
+    fontSize: 15,
+    color: colors.text,
+    textAlignVertical: 'top',
+  },
   progress: { fontSize: 16, fontWeight: '700', color: colors.text },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: {
