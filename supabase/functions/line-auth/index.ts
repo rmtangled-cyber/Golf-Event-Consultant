@@ -20,8 +20,9 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+// 管理画面に貼り付けたときに入りがちな前後の空白・改行は取り除く
 const env = (name: string) => {
-  const value = Deno.env.get(name);
+  const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`missing env ${name}`);
   return value;
 };
