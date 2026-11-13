@@ -62,6 +62,7 @@ test('Outbox: 通信エラーなら貯めたまま、復帰後に送って空に
   await outbox.enqueue('t', [entry(1, 5, '2026-01-01T10:00:00Z')]);
   await outbox.flush();
   assert.equal(outbox.state.pending, 1);
+  assert.equal(outbox.state.failing, true, '送れなかったら電波待ちの表示');
   assert.ok(storage.data.get('golf-compe/outbox/v1')?.includes('"strokes":5'), '端末に保存される');
 
   // アプリを開き直しても残っている
@@ -95,4 +96,14 @@ test('Outbox: 送信中に同じホールを入力し直したら、新しい方
   release();
   await flushing;
   assert.deepEqual(outbox.pendingFor('t').map((e) => e.strokes), [6]);
+});
+
+test('Outbox: 普通に送れている間は「電波待ち」にならない', async () => {
+  const states: boolean[] = [];
+  const outbox = new Outbox(memoryStorage(), async () => {});
+  outbox.subscribe((s) => states.push(s.failing));
+  await outbox.enqueue('t', [entry(1, 5, '2026-01-01T10:00:00Z')]);
+  await outbox.flush();
+  assert.ok(states.every((f) => f === false));
+  assert.equal(outbox.state.pending, 0);
 });
