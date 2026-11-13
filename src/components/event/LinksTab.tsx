@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { api } from '@/api/index.ts';
 import { confirm } from '@/components/confirm.ts';
 import { Button, Card, Muted, Notice, SectionTitle, colors } from '@/components/ui.tsx';
+import { withExternalBrowser } from '@/lib/install.ts';
 import { absoluteUrl, copyText, shareToLine } from '@/lib/links.ts';
 import type { OrganizerTabProps } from './types.ts';
 
@@ -20,7 +21,7 @@ export function LinksTab({ bundle, run }: OrganizerTabProps) {
     }
   };
 
-  const viewUrl = absoluteUrl(`/v/${event.viewToken}`);
+  const viewUrl = withExternalBrowser(absoluteUrl(`/v/${event.viewToken}`));
   const inviteUrl = event.organizerInviteToken ? absoluteUrl(`/join/${event.organizerInviteToken}`) : null;
 
   return (
@@ -41,7 +42,7 @@ export function LinksTab({ bundle, run }: OrganizerTabProps) {
         <Muted>このリンクを持つ人だけが、その組のスコアを入力できます。組の代表にだけ送ってください。</Muted>
         {activeGroups.length === 0 && <Notice tone="info">参加者を登録すると、組ごとのリンクができます。</Notice>}
         {activeGroups.map((g) => {
-          const url = absoluteUrl(`/g/${g.inputToken}`);
+          const url = withExternalBrowser(absoluteUrl(`/g/${g.inputToken}`));
           const names = players.filter((p) => p.groupId === g.id).map((p) => p.name).join('・');
           return (
             <View key={g.id} style={styles.group}>

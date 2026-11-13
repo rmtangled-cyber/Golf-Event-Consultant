@@ -9,13 +9,22 @@ import { GroupScoreEditor } from '@/components/GroupScoreEditor.tsx';
 import { AnnouncementList, LiveBanner } from '@/components/LiveNotices.tsx';
 import { NotificationPanel } from '@/components/NotificationPanel.tsx';
 import { Button, Card, Muted, Notice, Screen, colors } from '@/components/ui.tsx';
+import { InstallGate } from '@/components/InstallGate.tsx';
 import { useLoader } from '@/hooks/useLoader.ts';
 import { useOutbox } from '@/hooks/useOutbox.ts';
 import { errorMessage } from '@/lib/errors.ts';
 import { applyPending } from '@/sync/outbox.ts';
 
 /** 組の入力リンク：組代表が全員分のスコアを入力して提出する（ログイン不要） */
-export default function GroupInputScreen() {
+export default function GroupInputScreenRoute() {
+  return (
+    <InstallGate>
+      <GroupInputScreen />
+    </InstallGate>
+  );
+}
+
+function GroupInputScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { data: bundle, error, loading, reload } = useLoader(() => api.getGroupInput(token), [token], 30_000);
   const outboxState = useOutbox();

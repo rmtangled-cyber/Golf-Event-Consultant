@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '@/api/index.ts';
 import type { EventPatch } from '@/api/types.ts';
 import { confirm } from '@/components/confirm.ts';
+import { ParGrid } from '@/components/event/ParGrid.tsx';
 import { Button, Card, CommitField, Muted, SectionTitle, Segmented, Stepper, colors } from '@/components/ui.tsx';
 import { HANDICAP_OPTIONS } from '@/domain/labels.ts';
 import { pickHiddenHoles, sum } from '@/domain/scoring.ts';
@@ -15,11 +16,10 @@ export function SettingsTab({ bundle, run }: OrganizerTabProps) {
   const hidden = new Set(event.hiddenHoles);
   const save = (patch: EventPatch) => run(() => api.updateEvent(event.id, patch));
 
-  const cyclePar = (index: number) => {
-    const pars = [...event.pars];
-    pars[index] = pars[index] >= 5 ? 3 : pars[index] + 1;
-    void save({ pars });
-  };
+  const hasScores = bundle.scores.length > 0;
+  // スコア入力の前なら、パーを変えたら隠しホールも抽選し直す（構成がずれないように）
+  const changePars = (pars: number[]) =>
+    save(hasScores ? { pars } : { pars, hiddenHoles: pickHiddenHoles(pars) });
 
   return (
     <View style={{ gap: 12 }}>
@@ -57,23 +57,8 @@ export function SettingsTab({ bundle, run }: OrganizerTabProps) {
       <Card>
         <SectionTitle>パー設定（合計 {sum(event.pars)}）</SectionTitle>
         <Muted>タップでパー3→4→5を切り替え</Muted>
-        {[0, 9].map((start) => (
-          <View key={start} style={styles.parRow}>
-            {event.pars.slice(start, start + 9).map((par, i) => {
-              const index = start + i;
-              return (
-                <Pressable
-                  key={index}
-                  onPress={() => cyclePar(index)}
-                  style={[styles.parCell, showHidden && hidden.has(index + 1) && styles.hiddenCell]}
-                >
-                  <Text style={styles.parHole}>{index + 1}</Text>
-                  <Text style={styles.parValue}>{par}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+        <ParGrid pars={event.pars} onChange={changePars} highlight={showHidden ? hidden : undefined} />
+        {hasScores && <Muted>スコア入力が始まっているため、隠しホールは自動では変わりません。必要なら下の「再抽選」を押してください。</Muted>}
       </Card>
 
       <Card>
