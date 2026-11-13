@@ -19,7 +19,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'ゴルフコンペ' }} />
+        <Stack.Screen name="index" options={{ title: 'Golf Event Consultant' }} />
         <Stack.Screen name="events/new" options={{ title: '新しいコンペ' }} />
         <Stack.Screen name="events/[id]/index" options={{ title: 'コンペ' }} />
         <Stack.Screen name="events/[id]/group/[groupId]" options={{ title: 'スコア修正' }} />

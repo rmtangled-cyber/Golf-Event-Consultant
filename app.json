@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ゴルフコンペ",
+    "name": "Golf Event Consultant",
     "slug": "golf-event-consultant",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,7 +23,8 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "output": "single",
-      "name": "ゴルフコンペ"
+      "name": "Golf Event Consultant",
+      "shortName": "Golf Event"
     },
     "plugins": [
       "expo-router"

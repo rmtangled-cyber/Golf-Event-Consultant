@@ -1,6 +1,6 @@
 {
-  "name": "ゴルフコンペ",
-  "short_name": "ゴルフコンペ",
+  "name": "Golf Event Consultant",
+  "short_name": "Golf Event",
   "description": "ゴルフコンペの集計を、みんなのスマホで",
   "display": "standalone",
   "background_color": "#000712",

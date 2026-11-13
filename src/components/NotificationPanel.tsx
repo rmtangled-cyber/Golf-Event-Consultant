@@ -98,7 +98,7 @@ export function NotificationPanel({ viewToken }: { viewToken: string }) {
             items={[
               'Safariの画面下の共有ボタン（□に↑）を押す',
               '「ホーム画面に追加」を選び、「追加」を押す',
-              'ホーム画面にできた「ゴルフコンペ」のアイコンから開き直す',
+              'ホーム画面にできた「Golf Event」のアイコンから開き直す',
               '開いた画面のこの欄で「通知を受け取る」を押す',
             ]}
           />

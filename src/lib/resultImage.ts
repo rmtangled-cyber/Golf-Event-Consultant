@@ -133,7 +133,7 @@ export async function renderResultImage(event: CompeEvent): Promise<Blob> {
     y += TABLE_ROW;
   });
 
-  text('ゴルフコンペ', W / 2, H - 50, 24, color.muted, 500, 'center');
+  text('Golf Event Consultant', W / 2, H - 50, 24, color.muted, 500, 'center');
 
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'),

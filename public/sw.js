@@ -1,4 +1,4 @@
-// プッシュ通知を受け取って表示する Service Worker（ゴルフコンペ）
+// プッシュ通知を受け取って表示する Service Worker（Golf Event Consultant）
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'ゴルフコンペ', {
+    self.registration.showNotification(data.title || 'Golf Event Consultant', {
       body: data.body || '',
       tag: data.tag,
       icon: '/icon-192.png',
